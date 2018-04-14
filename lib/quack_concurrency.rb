@@ -1,9 +1,10 @@
 require 'thread'
 
-require_relative "quack_concurrency/future.rb"
-require_relative "quack_concurrency/reentrant_mutex.rb"
-require_relative "quack_concurrency/semaphore.rb"
-require_relative "quack_concurrency/waiter.rb"
+require 'quack_concurrency/future'
+require 'quack_concurrency/reentrant_mutex'
+require 'quack_concurrency/semaphore'
+require 'quack_concurrency/waiter'
+
 
 module QuackConcurrency
 end

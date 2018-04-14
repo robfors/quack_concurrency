@@ -1,6 +1,3 @@
-# Author: Rob Fors
-# Revision Date: 20180102
-
 module QuackConcurrency
   class Waiter
   

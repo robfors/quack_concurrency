@@ -1,6 +1,3 @@
-# Author: Rob Fors
-# Revision Date: 20180102
-
 module QuackConcurrency
   class Semaphore
   
@@ -11,8 +8,8 @@ module QuackConcurrency
       raise 'Error: permit_count invalid' if permit_count < 1
       @permit_count = permit_count
       @permits_used = 0
-      @mutex = ReentrantMutex.new(duck_types: duck_types)
       @condition_variable = condition_variable_class.new
+      @mutex = ReentrantMutex.new(duck_types: duck_types)
     end
     
     def acquire
@@ -27,7 +24,7 @@ module QuackConcurrency
       @mutex.synchronize do
         remove_permits = @permit_count - new_permit_count
         if remove_permits.positive? && remove_permits > permits_available
-          raise 'Error: can not remove enough permits right not'
+          raise 'can not remove enough permits right not'
         end
         set_permit_count!(new_permit_count)
       end
@@ -35,7 +32,7 @@ module QuackConcurrency
     end
     
     def set_permit_count!(new_permit_count)
-      raise 'Error: permit_count invalid' if new_permit_count < 1
+      raise "'permit_count' invalid" if new_permit_count < 1
       @mutex.synchronize do
         new_permits = new_permit_count - @permit_count
         if new_permits.positive?
@@ -50,7 +47,7 @@ module QuackConcurrency
     
     def release
       @mutex.synchronize do
-        raise 'No pemit to release.' if @permits_used == 0
+        raise 'no pemit to release' if @permits_used == 0
         @permits_used -= 1
         @condition_variable.signal if permit_available?
       end

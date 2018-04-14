@@ -1,17 +1,14 @@
-# Author: Rob Fors
-# Revision Date: 20180102
-
 module QuackConcurrency
   class Future
-    
+  
     class Canceled < StandardError
     end
     
     def initialize(duck_types: {})
+      condition_variable_class = duck_types[:condition_variable] || ConditionVariable
       mutex_class = duck_types[:mutex] || Mutex
-      condition_variable_class = duck_types[:condition_variable] || ::ConditionVariable
-      @mutex = mutex_class.new
       @condition_variable = condition_variable_class.new
+      @mutex = mutex_class.new
       @value = nil
       @value_set = false
       @complete = false
