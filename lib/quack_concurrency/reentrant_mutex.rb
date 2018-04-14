@@ -8,7 +8,8 @@ module QuackConcurrency
   
     def initialize(duck_types: {})
       mutex_class = duck_types[:mutex] || Mutex
-      condition_variable_class = duck_types[:condition_variable] || ::ConditionVariable
+      condition_variable_class = duck_types[:condition_variable] || ConditionVariable
+      @kernel_module = duck_types[:kernel] || Kernel
       @mutex = mutex_class.new
       @condition_variable = condition_variable_class.new
       @owner = nil
@@ -34,6 +35,16 @@ module QuackConcurrency
     
     def owned?
       @owner == caller
+    end
+    
+    def sleep(timeout = nil)
+      unlock
+      if timeout
+        @kernel_module.sleep(timeout)
+      else
+        @kernel_module.sleep
+      end
+      lock
     end
     
     def synchronize

@@ -7,11 +7,12 @@ module QuackConcurrency
     attr_reader :permit_count
     
     def initialize(permit_count = 1, duck_types: {})
+      condition_variable_class = duck_types[:condition_variable] || ConditionVariable
       raise 'Error: permit_count invalid' if permit_count < 1
       @permit_count = permit_count
       @permits_used = 0
       @mutex = ReentrantMutex.new(duck_types: duck_types)
-      @condition_variable = ConditionVariable.new
+      @condition_variable = condition_variable_class.new
     end
     
     def acquire

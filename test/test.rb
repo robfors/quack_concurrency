@@ -6,49 +6,6 @@ Thread.abort_on_exception = true
 
 
 
-puts 'test ConditionVariable'
-m = Mutex.new
-c = QuackConcurrency::ConditionVariable.new
-
-t = []
-3.times do
-  t << Thread.new do
-    m.synchronize do
-      c.wait(m)
-      print '.'
-    end
-  end
-end
-
-4.times do
-  sleep 1
-  c.signal
-end
-
-t.each(&:join)
-puts
-
-
-puts 'test ConditionVariable'
-w = QuackConcurrency::Waiter.new
-
-t = []
-3.times do
-  t << Thread.new do
-    w.wait
-    print '.'
-  end
-end
-
-4.times do
-  sleep 1
-  w.resume
-end
-
-t.each(&:join)
-puts
-
-
 puts 'test ReentrantMutex'
 r = QuackConcurrency::ReentrantMutex.new
 
