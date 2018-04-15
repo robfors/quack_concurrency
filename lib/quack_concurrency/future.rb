@@ -27,7 +27,7 @@ module QuackConcurrency
     def get
       @mutex.synchronize do
         @condition_variable.wait(@mutex) unless complete?
-        raise 'should not get here' unless complete?
+        raise unless complete?
         raise Canceled unless @value_set
         @value
       end
