@@ -2,8 +2,7 @@ module QuackConcurrency
   class Waiter
   
     def initialize(duck_types: {})
-      queue_class = duck_types[:queue] || Queue
-      @queue = queue_class.new
+      @queue = Queue.new(duck_types: duck_types)
     end
     
     def resume(value = nil)

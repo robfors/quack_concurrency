@@ -5,7 +5,7 @@ module QuackConcurrency
     
     def initialize(permit_count = 1, duck_types: {})
       condition_variable_class = duck_types[:condition_variable] || ConditionVariable
-      raise 'Error: permit_count invalid' if permit_count < 1
+      raise 'permit_count invalid' if permit_count < 1
       @permit_count = permit_count
       @permits_used = 0
       @condition_variable = condition_variable_class.new
