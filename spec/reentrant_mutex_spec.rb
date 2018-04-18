@@ -63,7 +63,7 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
         mutex = QuackConcurrency::ReentrantMutex.new
         mutex.lock
         mutex.unlock
-        expect { mutex.unlock }.to raise_error(RuntimeError)
+        expect { mutex.unlock }.to raise_error(QuackConcurrency::ReentrantMutex::Error)
       end
     end
     

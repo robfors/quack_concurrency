@@ -1,8 +1,5 @@
 module QuackConcurrency
   class Future
-  
-    class Canceled < StandardError
-    end
     
     def initialize(duck_types: {})
       condition_variable_class = duck_types[:condition_variable] || ConditionVariable
@@ -16,18 +13,19 @@ module QuackConcurrency
     
     def set(new_value = nil)
       @mutex.synchronize do
-        raise if @complete
+        raise Complete if @complete
         @value_set = true
         @complete = true
         @value = new_value
         @condition_variable.broadcast
       end
+      nil
     end
     
     def get
       @mutex.synchronize do
         @condition_variable.wait(@mutex) unless complete?
-        raise unless complete?
+        raise 'internal error, invalid state' unless complete?
         raise Canceled unless @value_set
         @value
       end
@@ -35,9 +33,11 @@ module QuackConcurrency
     
     def cancel
       @mutex.synchronize do
-        raise if @complete
+        raise Complete if @complete
         @complete = true
+        @condition_variable.broadcast
       end
+      nil
     end
     
     def complete?

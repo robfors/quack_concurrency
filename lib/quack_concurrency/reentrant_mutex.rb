@@ -5,7 +5,6 @@ module QuackConcurrency
   
     def initialize(duck_types: {})
       condition_variable_class = duck_types[:condition_variable] || ConditionVariable
-      @kernel_module = duck_types[:kernel] || Kernel
       mutex_class = duck_types[:mutex] || Mutex
       @condition_variable = condition_variable_class.new
       @mutex = mutex_class.new
@@ -16,6 +15,7 @@ module QuackConcurrency
     def lock
       @mutex.synchronize do
         @condition_variable.wait(@mutex) if @owner && @owner != caller
+        raise 'internal error, invalid state' if @owner && @owner != caller 
         @owner = caller
         @lock_depth += 1
       end
@@ -34,13 +34,15 @@ module QuackConcurrency
       @owner == caller
     end
     
-    def sleep(timeout = nil)
+    def sleep(*args)
       unlock
-      if timeout
-        @kernel_module.sleep(timeout)
-      else
-        @kernel_module.sleep
+      # I would rather not need to get a ducktype for sleep so we will just take
+      #   advantage of Mutex's sleep method that must take it into account already
+      @mutex.synchronize do
+        @mutex.sleep(*args)
       end
+      nil
+    ensure
       lock
     end
     
@@ -52,27 +54,24 @@ module QuackConcurrency
       result
     ensure
       unless @lock_depth == start_depth && @owner == start_owner
-        raise 'could not unlock mutex as its state has been modified'
+        raise Error, 'could not unlock reentrant mutex as its state has been modified'
       end
       unlock
     end
     
     def try_lock
       @mutex.synchronize do
-        if @owner && @owner != caller
-          return false
-        else
-          @owner = caller
-          @lock_depth += 1
-        end
+        return false if @owner && @owner != caller
+        @owner = caller
+        @lock_depth += 1
+        true
       end
-      true
     end
     
     def unlock
       @mutex.synchronize do
-        raise "not locked" if @lock_depth == 0
-        raise "not the owner" unless @owner == caller
+        raise Error, 'can not unlock reentrant mutex, it is not locked' if @lock_depth == 0
+        raise Error, 'can not unlock reentrant mutex, caller is not the owner' unless @owner == caller
         @lock_depth -= 1
         if @lock_depth == 0
           @owner = nil
