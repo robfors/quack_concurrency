@@ -1,7 +1,7 @@
 module QuackConcurrency
-  class Waiter
+  class Waiter < ConcurrencyTool
   
-    def initialize(duck_types: {})
+    def initialize(duck_types: nil)
       @queue = Queue.new(duck_types: duck_types)
     end
     

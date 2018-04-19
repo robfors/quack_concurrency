@@ -1,13 +1,12 @@
 # based off https://en.wikipedia.org/wiki/Reentrant_mutex
 
 module QuackConcurrency
-  class ReentrantMutex
+  class ReentrantMutex < ConcurrencyTool
   
-    def initialize(duck_types: {})
-      condition_variable_class = duck_types[:condition_variable] || ConditionVariable
-      mutex_class = duck_types[:mutex] || Mutex
-      @condition_variable = condition_variable_class.new
-      @mutex = mutex_class.new
+    def initialize(duck_types: nil)
+      classes = setup_duck_types(duck_types)
+      @condition_variable = classes[:condition_variable].new
+      @mutex = classes[:mutex].new
       @owner = nil
       @lock_depth = 0
     end
@@ -36,14 +35,14 @@ module QuackConcurrency
     
     def sleep(*args)
       unlock
-      # I would rather not need to get a ducktype for sleep so we will just take
+      # i would rather not need to get a ducktype for sleep so we will just take
       #   advantage of Mutex's sleep method that must take it into account already
       @mutex.synchronize do
         @mutex.sleep(*args)
       end
       nil
     ensure
-      lock
+      lock unless owned?
     end
     
     def synchronize

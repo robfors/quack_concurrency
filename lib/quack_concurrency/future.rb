@@ -1,11 +1,10 @@
 module QuackConcurrency
-  class Future
+  class Future < ConcurrencyTool
     
-    def initialize(duck_types: {})
-      condition_variable_class = duck_types[:condition_variable] || ConditionVariable
-      mutex_class = duck_types[:mutex] || Mutex
-      @condition_variable = condition_variable_class.new
-      @mutex = mutex_class.new
+    def initialize(duck_types: nil)
+      classes = setup_duck_types(duck_types)
+      @condition_variable = classes[:condition_variable].new
+      @mutex = classes[:mutex].new
       @value = nil
       @value_set = false
       @complete = false
