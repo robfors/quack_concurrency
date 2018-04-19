@@ -2,7 +2,40 @@ require 'quack_concurrency'
 
 RSpec.describe QuackConcurrency::ReentrantMutex do
   
-  describe "lock" do
+  describe "::new" do
+  
+    context "when called without a 'duck_types' argument" do
+      it "should create a new QuackConcurrency::ReentrantMutex" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        expect(mutex).to be_a(QuackConcurrency::ReentrantMutex)
+      end
+    end
+    
+    context "when called with 'condition_variable' and 'mutex' duck types" do
+      it "should create a new QuackConcurrency::ReentrantMutex" do
+        duck_types = {condition_variable: Class.new, mutex: Class.new}
+        mutex = QuackConcurrency::ReentrantMutex.new(duck_types: duck_types)
+        expect(mutex).to be_a(QuackConcurrency::ReentrantMutex)
+      end
+    end
+    
+    context "when called with only 'condition_variable' duck type" do
+      it "should raise ArgumentError" do
+        duck_types = {condition_variable: Class.new}
+        expect{ QuackConcurrency::ReentrantMutex.new(duck_types: duck_types) }.to raise_error(ArgumentError)
+      end
+    end
+    
+    context "when called with only 'mutex' duck type" do
+      it "should raise ArgumentError" do
+        duck_types = {mutex: Class.new}
+        expect{ QuackConcurrency::ReentrantMutex.new(duck_types: duck_types) }.to raise_error(ArgumentError)
+      end
+    end
+    
+  end
+  
+  describe "#lock" do
   
     context "when called for first time" do
       it "should not raise error" do
@@ -11,7 +44,7 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
       end
     end
     
-    context "when called the second time" do
+    context "when called a second time" do
       it "should not raise error" do
         mutex = QuackConcurrency::ReentrantMutex.new
         mutex.lock
@@ -19,29 +52,29 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
       end
     end
     
-    context "when called on non owning thread" do
-      it "should wait" do
-        $test = []
-        mutex = QuackConcurrency::ReentrantMutex.new
-        thread = Thread.new do
-          sleep 1
-          mutex.lock
-          $test << 2
-        end
-        mutex.lock
-        sleep 2
-        $test << 1
-        mutex.unlock
-        thread.join
-        expect($test).to eql [1, 2]
-      end
-    end
-    
   end
   
-  describe "unlock" do
-  
-    context "when called after one lock" do
+  describe "#lock, #unlock" do
+    
+    context "when #lock called on non owning thread" do
+      it "should wait for #unlock" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        thread = Thread.new do
+          mutex.lock
+          sleep 2
+          mutex.unlock
+        end
+        sleep 1
+        start_time = Time.now
+        mutex.lock
+        end_time = Time.now
+        duration = end_time - start_time
+        thread.join
+        expect(duration).to be > 0.5
+      end
+    end
+    
+    context "when #unlock called after one #lock" do
       it "should not raise error" do
         mutex = QuackConcurrency::ReentrantMutex.new
         mutex.lock
@@ -49,7 +82,7 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
       end
     end
     
-    context "when called after two locks" do
+    context "when #unlock called after two #locks" do
       it "should not raise error" do
         mutex = QuackConcurrency::ReentrantMutex.new
         mutex.lock
@@ -58,7 +91,7 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
       end
     end
     
-    context "when called twice after only one lock" do
+    context "when #unlock called twice after only one #lock" do
       it "should raise error" do
         mutex = QuackConcurrency::ReentrantMutex.new
         mutex.lock
@@ -68,4 +101,98 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
     end
     
   end
+  
+  describe "#lock, #try_lock" do
+    
+    context "when #try_lock called" do
+      it "should reutrn true" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        expect(mutex.try_lock).to eql true
+      end
+    end
+    
+    context "when #try_lock called after #lock called from other Thread" do
+      it "should reutrn false" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        thread = Thread.new { mutex.lock }
+        sleep 1
+        expect(mutex.try_lock).to eql false
+      end
+    end
+    
+  end
+  
+  describe "#lock, #try_lock, #unlock" do
+    
+    context "when #lock called after #try_lock called from other Thread" do
+      it "should wait for #unlock" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        thread = Thread.new do
+          mutex.try_lock
+          sleep 2
+          mutex.unlock
+        end
+        sleep 1
+        start_time = Time.now
+        mutex.lock
+        end_time = Time.now
+        duration = end_time - start_time
+        thread.join
+        expect(duration).to be > 0.5
+      end
+    end
+    
+  end
+  
+  describe "#synchronize" do
+    
+    context "when #synchronize called" do
+      it "should return last value from block" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        value = mutex.synchronize do
+          1
+        end
+        expect(value).to eql 1
+      end
+    end
+    
+  end
+  
+  describe "#sleep" do
+    
+    context "when #sleep called with time argument" do
+      it "should wait for that time" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        start_time = Time.now
+        mutex.synchronize do
+          mutex.sleep(1)
+        end
+        end_time = Time.now
+        duration = end_time - start_time
+        expect(duration).to be > 0.5
+      end
+    end
+    
+    context "when #sleep called with no time argument" do
+      it "should wait until Thread is resumed" do
+        mutex = QuackConcurrency::ReentrantMutex.new
+        start_time = nil
+        end_time = nil
+        thread = Thread.new do
+          start_time = Time.now
+          mutex.synchronize do
+            mutex.sleep
+          end
+          end_time = Time.now
+        end
+        sleep 1
+        thread.run
+        thread.join
+        duration = end_time - start_time
+        expect(duration).to be > 0.5
+      end
+    end
+    
+  end
+  
 end
