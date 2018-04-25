@@ -1,4 +1,6 @@
 module QuackConcurrency
+  
+  # @api private
   class ConcurrencyTool
     
     def setup_duck_types(supplied_classes)

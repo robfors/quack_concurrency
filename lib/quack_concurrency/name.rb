@@ -1,4 +1,6 @@
 module QuackConcurrency
+  
+  # @api private
   class Name < String
     
     def initialize(*args)
