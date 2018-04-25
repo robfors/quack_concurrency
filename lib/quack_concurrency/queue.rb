@@ -66,10 +66,14 @@ module QuackConcurrency
     
     # Retrieves item from the queue.
     # @note If the queue is empty, it will block until an item is available.
-    def pop
+    #   If +non_block+ is true, it will raise {Error} instead.
+    # @raise {Error} if queue is empty and +non_block+ is true
+    # @param non_block [Boolean] 
+    def pop(non_block = false)
       @mutex.synchronize do
         if @waiting_count >= length
           return if closed?
+          raise Error if non_block
           @waiting_count += 1
           @condition_variable.wait(@mutex)
           @waiting_count -= 1

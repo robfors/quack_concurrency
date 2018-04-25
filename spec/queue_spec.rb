@@ -47,6 +47,17 @@ RSpec.describe QuackConcurrency::Queue do
     
   end
   
+  describe "#pop" do
+  
+    context "when #pop is called with non_block set to true" do
+      it "should raise Error" do
+        queue = QuackConcurrency::Queue.new
+        expect{ queue.pop(true) }.to raise_error(QuackConcurrency::Queue::Error)
+      end
+    end
+    
+  end
+  
   describe "#close, #push" do
 
     context "when called when queue is closed" do

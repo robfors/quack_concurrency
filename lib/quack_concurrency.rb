@@ -10,6 +10,7 @@ require 'quack_concurrency/semaphore'
 require 'quack_concurrency/waiter'
 require 'quack_concurrency/future/canceled'
 require 'quack_concurrency/future/complete'
+require 'quack_concurrency/queue/error'
 require 'quack_concurrency/reentrant_mutex/error'
 require 'quack_concurrency/semaphore/error'
 
