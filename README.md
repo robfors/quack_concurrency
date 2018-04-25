@@ -7,4 +7,4 @@ This Ruby Gem offers a few concurrency tools that could also be found in [*Concu
 Then simply `require 'quack_concurrency'` in your project.
 
 # Documentation
-[![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/gems/quack_concurrency)
+[![Yard Docs](https://img.shields.io/badge/yard-docs-blue.svg?style=for-the-badge)](http://www.rubydoc.info/gems/quack_concurrency)
