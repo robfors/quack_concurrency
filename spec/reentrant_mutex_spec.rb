@@ -2,39 +2,6 @@ require 'quack_concurrency'
 
 RSpec.describe QuackConcurrency::ReentrantMutex do
   
-  describe "::new" do
-  
-    context "when called without a 'duck_types' argument" do
-      it "should create a new QuackConcurrency::ReentrantMutex" do
-        mutex = QuackConcurrency::ReentrantMutex.new
-        expect(mutex).to be_a(QuackConcurrency::ReentrantMutex)
-      end
-    end
-    
-    context "when called with 'condition_variable' and 'mutex' duck types" do
-      it "should create a new QuackConcurrency::ReentrantMutex" do
-        duck_types = {condition_variable: Class.new, mutex: Class.new}
-        mutex = QuackConcurrency::ReentrantMutex.new(duck_types: duck_types)
-        expect(mutex).to be_a(QuackConcurrency::ReentrantMutex)
-      end
-    end
-    
-    context "when called with only 'condition_variable' duck type" do
-      it "should raise ArgumentError" do
-        duck_types = {condition_variable: Class.new}
-        expect{ QuackConcurrency::ReentrantMutex.new(duck_types: duck_types) }.to raise_error(ArgumentError)
-      end
-    end
-    
-    context "when called with only 'mutex' duck type" do
-      it "should raise ArgumentError" do
-        duck_types = {mutex: Class.new}
-        expect{ QuackConcurrency::ReentrantMutex.new(duck_types: duck_types) }.to raise_error(ArgumentError)
-      end
-    end
-    
-  end
-  
   describe "#lock" do
   
     context "when called for first time" do
@@ -164,6 +131,8 @@ RSpec.describe QuackConcurrency::ReentrantMutex do
       it "should wait for that time" do
         mutex = QuackConcurrency::ReentrantMutex.new
         start_time = Time.now
+        #require 'pry'
+        #binding.pry
         mutex.synchronize do
           mutex.sleep(1)
         end

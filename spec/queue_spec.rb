@@ -2,39 +2,6 @@ require 'quack_concurrency'
 
 RSpec.describe QuackConcurrency::Queue do
   
-  describe "::new" do
-  
-    context "when called without a 'duck_types' argument" do
-      it "should create a new QuackConcurrency::Queue" do
-        queue = QuackConcurrency::Queue.new
-        expect(queue).to be_a(QuackConcurrency::Queue)
-      end
-    end
-    
-    context "when called with 'condition_variable' and 'mutex' duck types" do
-      it "should create a new QuackConcurrency::Queue" do
-        duck_types = {condition_variable: Class.new, mutex: Class.new}
-        queue = QuackConcurrency::Queue.new(duck_types: duck_types)
-        expect(queue).to be_a(QuackConcurrency::Queue)
-      end
-    end
-    
-    context "when called with only 'condition_variable' duck type" do
-      it "should raise ArgumentError" do
-        duck_types = {condition_variable: Class.new}
-        expect{ QuackConcurrency::Queue.new(duck_types: duck_types) }.to raise_error(ArgumentError)
-      end
-    end
-    
-    context "when called with only 'mutex' duck type" do
-      it "should raise ArgumentError" do
-        duck_types = {mutex: Class.new}
-        expect{ QuackConcurrency::Queue.new(duck_types: duck_types) }.to raise_error(ArgumentError)
-      end
-    end
-    
-  end
-  
   describe "#push" do
   
     context "when called many times when queue is not closed" do
@@ -52,7 +19,7 @@ RSpec.describe QuackConcurrency::Queue do
     context "when #pop is called with non_block set to true" do
       it "should raise Error" do
         queue = QuackConcurrency::Queue.new
-        expect{ queue.pop(true) }.to raise_error(QuackConcurrency::Queue::Error)
+        expect{ queue.pop(true) }.to raise_error(ThreadError)
       end
     end
     

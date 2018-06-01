@@ -1,61 +1,72 @@
 module QuackConcurrency
-  class Future < ConcurrencyTool
+  class Future
     
-    # Creates a new +Future+ concurrency tool.
-    # @param duck_types [Hash] hash of core Ruby classes to overload.
-    #   If a +Hash+ is given, the keys +:condition_variable+ and +:mutex+ must be present.
+    # Creates a new {Future} concurrency tool.
     # @return [Future]
-    def initialize(duck_types: nil)
-      classes = setup_duck_types(duck_types)
-      @condition_variable = classes[:condition_variable].new
-      @mutex = classes[:mutex].new
+    def initialize
+      @waiter = Waiter.new
+      @mutex = ::Mutex.new
       @value = nil
-      @value_set = false
       @complete = false
+      @exception = false
     end
     
-    # Cancels the future.
-    # @raise [Complete] if the future is already completed
-    # @return [void] value of the future
-    def cancel
-      @mutex.synchronize do
-        raise Complete if @complete
-        @complete = true
-        @condition_variable.broadcast
-      end
+    # Cancels the {Future}.
+    # Calling {#get} will result in Canceled being raised.
+    # Same as `raise(Canceled.new)`.
+    # @raise [Complete] if the {Future} was already completed
+    # @param exception [Exception] custom `Exception` to set
+    # @return [void]
+    def cancel(exception = nil)
+      exception ||= Canceled.new
+      self.raise(exception)
       nil
     end
     
-    # Checks if future has a value or is canceled.
+    # Checks if {Future} has a value or was canceled.
     # @return [Boolean]
     def complete?
       @complete
     end
     
-    # Gets the value of the future.
+    # Gets the value of the {Future}.
     # @note This method will block until the future has completed.
-    # @raise [Canceled] if the future is canceled
-    # @return value of the future
+    # @raise [Canceled] if the {Future} is canceled
+    # @raise [Exception] if the {Future} was canceled with a given exception
+    # @return [Object] value of the {Future}
     def get
-      @mutex.synchronize do
-        @condition_variable.wait(@mutex) unless complete?
-        raise 'internal error, invalid state' unless complete?
-        raise Canceled unless @value_set
-        @value
-      end
+      @waiter.wait
+      Kernel.raise(@exception) if @exception
+      @value
     end
     
-    # Sets the value of the future.
+    # Cancels the {Future} with a custom `Exception`.
     # @raise [Complete] if the future has already completed
-    # @param new_value value to assign to future
+    # @param exception [Exception]
+    # @return [void]
+    def raise(exception = nil)
+      unless exception == nil || exception.is_a?(Exception)
+        Kernel.raise(ArgumentError, "'exception' must be nil or an instance of an Exception")
+      end
+      @mutex.synchronize do
+        Kernel.raise(Complete) if @complete
+        @complete = true
+        @exception = exception || StandardError.new
+        @waiter.resume_all_forever
+      end
+      nil
+    end
+    
+    # Sets the value of the {Future}.
+    # @raise [Complete] if the {Future} has already completed
+    # @param new_value [nil,Object] value to assign to future
     # @return [void]
     def set(new_value = nil)
       @mutex.synchronize do
-        raise Complete if @complete
-        @value_set = true
+        Kernel.raise(Complete) if @complete
         @complete = true
         @value = new_value
-        @condition_variable.broadcast
+        @waiter.resume_all_forever
       end
       nil
     end

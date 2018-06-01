@@ -1,97 +1,97 @@
 module QuackConcurrency
   
   # @note duck type for +::Thread::Queue+
-  class Queue < ConcurrencyTool
+  class Queue
   
     # Creates a new {Queue} concurrency tool.
-    # @param duck_types [Hash] hash of core Ruby classes to overload.
-    #   If a +Hash+ is given, the keys +:condition_variable+ and +:mutex+ must be present.
     # @return [Queue]
-    def initialize(duck_types: nil)
-      classes = setup_duck_types(duck_types)
-      @condition_variable = classes[:condition_variable].new
-      @mutex = classes[:mutex].new
-      @queue = []
-      @waiting_count = 0
+    def initialize
+      @mutex = ::Mutex.new
+      @pop_mutex = Mutex.new
+      @waiter = Waiter.new
+      @items = []
       @closed = false
     end
     
-    # Removes all objects from the queue.
+    # Removes all objects from the {Queue}.
     # @return [self]
     def clear
-      @mutex.synchronize { @queue = [] }
+      @mutex.synchronize { @items.clear }
       self
     end
     
-    # Closes the queue. A closed queue cannot be re-opened.
+    # Closes the {Queue}. A closed {Queue} cannot be re-opened.
     # After the call to close completes, the following are true:
-    # * {#closed?} will return +true+.
+    # * {#closed?} will return `true`.
     # * {#close} will be ignored.
     # * {#push} will raise an exception.
-    # * until empty, calling {#pop} will return an object from the queue as usual.
+    # * until empty, calling {#pop} will return an object from the {Queue} as usual.
     # @return [self]
     def close
       @mutex.synchronize do
         return if closed?
         @closed = true
-        @condition_variable.broadcast
+        @waiter.resume_all
       end
       self
     end
     
-    # Checks if queue is closed.
+    # Checks if {Queue} is closed.
     # @return [Boolean]
     def closed?
       @closed
     end
     
-    # Checks if queue is empty.
+    # Checks if {Queue} is empty.
     # @return [Boolean]
     def empty?
-      @queue.empty?
+      @items.empty?
     end
     
-    # Returns the length of the queue.
+    # Returns the length of the {Queue}.
     # @return [Integer]
     def length
-      @queue.length
+      @items.length
     end
     alias_method :size, :length
     
-    # Returns the number of threads waiting on the queue.
+    # Returns the number of threads waiting on the {Queue}.
     # @return [Integer]
     def num_waiting
-      @waiting_count
+      @pop_mutex.waiting_threads_count + @waiter.waiting_threads_count
     end
     
-    # Retrieves item from the queue.
-    # @note If the queue is empty, it will block until an item is available.
-    #   If +non_block+ is true, it will raise {Error} instead.
-    # @raise {Error} if queue is empty and +non_block+ is true
-    # @param non_block [Boolean] 
+    # Retrieves item from the {Queue}.
+    # @note If the {Queue} is empty, it will block until an item is available.
+    #   If `non_block` is `true`, it will raise {ThreadError} instead.
+    # @raise {ThreadError} if {Queue} is empty and `non_block` is `true`
+    # @param non_block [Boolean]
     def pop(non_block = false)
-      @mutex.synchronize do
-        if @waiting_count >= length
-          return if closed?
-          raise Error if non_block
-          @waiting_count += 1
-          @condition_variable.wait(@mutex)
-          @waiting_count -= 1
-          return if closed?
+      @pop_mutex.lock do
+        @mutex.synchronize do
+          if empty?
+            return if closed?
+            raise ThreadError if non_block
+            @mutex.unlock
+            @waiter.wait
+            @mutex.lock
+            return if closed?
+          end
+          @items.shift
         end
-        @queue.shift
       end
     end
     alias_method :deq, :pop
     alias_method :shift, :pop
     
-    # Pushes the given object to the queue.
+    # Pushes the given object to the {Queue}.
+    # @param item [Object]
     # @return [self]
     def push(item = nil)
       @mutex.synchronize do
         raise ClosedQueueError if closed?
-        @queue.push(item)
-        @condition_variable.signal
+        @items.push(item)
+        @waiter.resume_one
       end
       self
     end

@@ -1,21 +1,21 @@
+# not ready yet
+
 module QuackConcurrency
-  class Semaphore < ConcurrencyTool
+  class Semaphore
   
     # Gets total permit count
     # @return [Integer]
     attr_reader :permit_count
     
     # Creates a new {Semaphore} concurrency tool.
-    # @param duck_types [Hash] hash of core Ruby classes to overload.
-    #   If a +Hash+ is given, the keys +:condition_variable+ and +:mutex+ must be present.
     # @return [Semaphore]
-    def initialize(permit_count = 1, duck_types: nil)
-      classes = setup_duck_types(duck_types)
-      @condition_variable = classes[:condition_variable].new
+    def initialize(permit_count = 1)
+      raise 'not ready yet'
+      @condition_variable = UninterruptibleConditionVariable.new
       verify_permit_count(permit_count)
       @permit_count = permit_count
       @permits_used = 0
-      @mutex = ReentrantMutex.new(duck_types: duck_types)
+      @mutex = ::ReentrantMutex.new
     end
     
     # Check if a permit is available to be released.

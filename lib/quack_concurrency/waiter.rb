@@ -1,27 +1,57 @@
 module QuackConcurrency
-  class Waiter < ConcurrencyTool
+  
+  # @api private
+  class Waiter
   
     # Creates a new {Waiter} concurrency tool.
-    # @param duck_types [Hash] hash of core Ruby classes to overload.
-    #   If a +Hash+ is given, the keys +:condition_variable+ and +:mutex+ must be present.
     # @return [Waiter]
-    def initialize(duck_types: nil)
-      @queue = Queue.new(duck_types: duck_types)
+    def initialize
+      @condition_variable = UninterruptibleConditionVariable.new
+      @resume_all_forever = false
+      @mutex = ::Mutex.new
     end
     
-    # Resumes next waiting thread.
-    # @param value value to pass to waiting thread
+    def any_waiting_threads?
+      @condition_variable.any_waiting_threads?
+    end
+    
+    # Resumes all current and future waiting Thread.
     # @return [void]
-    def resume(value = nil)
-      @queue << value
+    def resume_all
+      @condition_variable.broadcast
       nil
     end
     
-    # Waits for another thread to resume the calling thread.
+    # Resumes all current and future waiting Thread.
+    # @return [void]
+    def resume_all_forever
+      @mutex.synchronize do
+        @resume_all_forever = true
+        resume_all
+      end
+      nil
+    end
+    
+    # Resumes next waiting Thread if one exists.
+    # @return [void]
+    def resume_one
+      @condition_variable.signal
+      nil
+    end
+    
+    # Waits for another Thread to resume the calling Thread.
     # @note Will block until resumed.
-    # @return value passed from resuming thread
+    # @return [void]
     def wait
-      @queue.pop
+      @mutex.synchronize do
+        return if @resume_all_forever
+        @condition_variable.wait(@mutex)
+      end
+      nil
+    end
+    
+    def waiting_threads_count
+      @condition_variable.waiting_threads_count
     end
     
   end
