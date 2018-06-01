@@ -1,4 +1,9 @@
 module QuackConcurrency
+
+  # An {UninterruptibleSleeper} can be used to safely sleep a `Thread`.
+  # Unlike simply calling `Thread#sleep`, {#stop_thread} will ensure that only
+  # calling {#run_thread} on this {UninterruptibleSleeper} will wake the `Thread`.
+  # Any call to `Thread#run` directly, will be ignored.
   class UninterruptibleSleeper
     
     def self.for_current

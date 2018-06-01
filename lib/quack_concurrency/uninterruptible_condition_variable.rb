@@ -1,4 +1,7 @@
 module QuackConcurrency
+
+  # Unlike `::ConditionVariable` {UninterruptibleConditionVariable} will
+  # safely sleep a `Thread`s. Any calls to `Thread#run` directly, will be ignored.
   class UninterruptibleConditionVariable
   
     def initialize
