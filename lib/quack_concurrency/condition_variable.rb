@@ -61,18 +61,30 @@ module QuackConcurrency
       end
       @mutex.synchronize { @waiting_threads.push(caller) }
       if mutex
+        # ideally we would would check if this Thread can sleep (not the last Thread alive)
+        #   before we unlock the mutex, however I am not sure is that can be implemented
         if mutex.respond_to?(:unlock!)
           mutex.unlock! { sleep(timeout) }
         else
           mutex.unlock
-          sleep(timeout)
-          mutex.lock
+          begin
+            sleep(timeout)
+          ensure # rescue a fatal error (eg. only Thread stopped)
+            if mutex.locked?
+              # another Thread locked this before it died
+              # this is not a correct state to be in but I don't know how to fix it
+              # given that there are no other alive Threads then than the ramifications should be minimal
+            else
+              mutex.lock
+            end
+          end
         end
       else
         sleep(timeout)
       end
-      @mutex.synchronize { @waiting_threads.delete(caller) }
       self
+    ensure
+      @mutex.synchronize { @waiting_threads.delete(caller) }
     end
     
     # Returns the number of `Thread`s currently waiting.

@@ -4,6 +4,8 @@ module QuackConcurrency
   # Unlike simply calling `Thread#sleep`, {#stop_thread} will ensure that only
   # calling {#run_thread} on this {UninterruptibleSleeper} will wake the `Thread`.
   # Any call to `Thread#run` directly, will be ignored.
+  # `Thread`s can still be resumed if `Thread#raise` is called.
+  # A `ThreadError` will be raised if a the last running `Thread` is stopped.
   class UninterruptibleSleeper
     
     def self.for_current
@@ -52,13 +54,14 @@ module QuackConcurrency
             time_left = target_end_time - Time.now
             Kernel.sleep(time_left) if time_left > 0
           else
-            Thread.stop
+            Thread.stop # may raise ThreadError if this is last running Thread
           end
           break if @state == :running || Time.now >= target_time
         end
+      ensure
         @state = :running
         
-        # we relock the mutex ensure #run_thread has finshed before #stop_thread
+        # we relock the mutex to ensure #run_thread has finshed before #stop_thread
         # if Thread#run is called by another part of the code at the same time as
         #   #run_thread is being called, we dont want the call to #run_thread
         #   to call Thread#run on a Thread has already resumed and stopped again

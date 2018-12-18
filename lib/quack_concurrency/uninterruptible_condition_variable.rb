@@ -35,18 +35,30 @@ module QuackConcurrency
       sleeper = UninterruptibleSleeper.for_current
       @mutex.synchronize { @waiting_threads_sleepers.push(sleeper) }
       if mutex
+        # ideally we would would check if this Thread can sleep (not the last Thread alive)
+        #   before we unlock the mutex, however I am not sure is that can be implemented
         if mutex.respond_to?(:unlock!)
           mutex.unlock! { sleep(sleeper, timeout) }
         else
           mutex.unlock
-          sleep(sleeper, timeout)
-          mutex.lock
+          begin
+            sleep(sleeper, timeout)
+          ensure # rescue a fatal error (eg. only Thread stopped)
+            if mutex.locked?
+              # another Thread locked this before it died
+              # this is not a correct state to be in but I don't know how to fix it
+              # given that there are no other alive Threads then than the ramifications should be minimal
+            else
+              mutex.lock
+            end
+          end
         end
       else
         sleep(sleeper, timeout)
       end
-      @mutex.synchronize { @waiting_threads_sleepers.delete(sleeper) }
       self
+    ensure
+      @mutex.synchronize { @waiting_threads_sleepers.delete(sleeper) }
     end
     
     def waiting_threads_count
@@ -54,7 +66,7 @@ module QuackConcurrency
     end
     
     private
-    
+
     # @api private
     def signal_next
       next_waiting_thread_sleeper = @waiting_threads_sleepers.shift
