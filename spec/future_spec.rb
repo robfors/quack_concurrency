@@ -108,5 +108,41 @@ RSpec.describe QuackConcurrency::Future do
     end
     
   end
+
+  describe "#raise" do
+  
+    context "when called with nil" do
+      it "should set the error to raise StandardError" do
+        future = QuackConcurrency::Future.new
+        expect{ future.raise }.not_to raise_error
+        expect{ future.get }.to raise_error(StandardError)
+      end
+    end
+
+    context "when called with an error instance" do
+      it "should set the error to that instance" do
+        future = QuackConcurrency::Future.new
+        e = TypeError.new
+        expect{ future.raise(e) }.not_to raise_error
+        expect{ future.get }.to raise_error(e)
+      end
+    end
+
+    context "when called with an error class" do
+      it "should set the error to an instance of that class" do
+        future = QuackConcurrency::Future.new
+        expect{ future.raise(TypeError) }.not_to raise_error
+        expect{ future.get }.to raise_error(TypeError)
+      end
+    end
+
+    context "when called with an invalid argument" do
+      it "should raise ArgumentError" do
+        future = QuackConcurrency::Future.new
+        expect{ future.raise("error") }.to raise_error(ArgumentError)
+      end
+    end
+    
+  end
   
 end

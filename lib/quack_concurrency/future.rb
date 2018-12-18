@@ -45,13 +45,17 @@ module QuackConcurrency
     # @param exception [Exception]
     # @return [void]
     def raise(exception = nil)
-      unless exception == nil || exception.is_a?(Exception)
-        Kernel.raise(ArgumentError, "'exception' must be nil or an instance of an Exception")
+      exception = case
+      when exception == nil then StandardError.new
+      when exception.is_a?(Exception) then exception
+      when exception <= Exception then exception.new
+      else
+        Kernel.raise(ArgumentError, "'exception' must be nil or an instance of or descendant of Exception")
       end
       @mutex.synchronize do
         Kernel.raise(Complete) if @complete
         @complete = true
-        @exception = exception || StandardError.new
+        @exception = exception
         @waiter.resume_all_forever
       end
       nil
