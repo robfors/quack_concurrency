@@ -1,9 +1,9 @@
 Gem::Specification.new do |s|
   s.name        = 'quack_concurrency'
-  s.version     = '0.5.4'
-  s.date        = '2018-12-18'
-  s.summary     = 'Concurrency tools that accept duck types of core classes.'
-  s.description = "Offers concurrency tools that could also be found in the 'Concurrent Ruby'. However, all these tools will also accept core class duck types to build off of."
+  s.version     = '0.6.0'
+  s.date        = '2018-12-28'
+  s.summary     = 'Concurrency tools with modifiable blocking behaviour.'
+  s.description = "Offers concurrency tools that could also be found in the 'Concurrent Ruby'. However, all these tools will also accept core duck types to build off of."
   s.authors     = 'Rob Fors'
   s.email       = 'mail@robfors.com'  
   s.files       = Dir.glob("{lib,spec}/**/*") + %w(LICENSE README.md Rakefile)

@@ -1,128 +1,134 @@
 module QuackConcurrency
-  
-  # @note duck type for `::Thread::ConditionVariable`
+
+  # {ConditionVariable} is similar to +::ConditionVariable+.
+  #
+  # A a few differences include:
+  # * {#wait} supports passing a {ReentrantMutex} and {Mutex}
+  # * methods have been added to get information on waiting threads
   class ConditionVariable
-  
+
     # Creates a new {ConditionVariable} concurrency tool.
     # @return [ConditionVariable]
     def initialize
-      @waiting_threads = []
       @mutex = ::Mutex.new
+      @waitables = []
+      @waitables_to_resume = []
     end
-    
-    # Returns if any `Threads` are currently waiting.
-    # @api private
+
+    # Checks if any threads are waiting on it.
     # @return [Boolean]
     def any_waiting_threads?
       waiting_threads_count >= 1
     end
-    
-    # Wakes up all `Threads` currently waiting.
+
+    # Resumes all threads waiting on it.
     # @return [self]
     def broadcast
       @mutex.synchronize do
-        signal_next until @waiting_threads.empty?
+        signal_next until @waitables_to_resume.empty?
       end
       self
     end
-    
-    # Wakes up the next waiting `Thread`, if any exist.
+
+    # Returns the {Waitable} representing the next thread to be woken.
+    # It will return the thread that made the earliest call to {#wait}.
+    # @api private
+    # @return [Waitable]
+    def next_waitable_to_wake
+      @mutex.synchronize { @waitables.first }
+    end
+
+    # Resumes next thread waiting on it if one exists.
     # @return [self]
     def signal
       @mutex.synchronize do
-        signal_next if @waiting_threads.any?
+        signal_next if @waitables_to_resume.any?
       end
       self
     end
-    
-    # Sleeps the current `Thread`.
-    # @param duration [nil, Numeric] time to sleep in seconds
+
+    # Puts this thread to sleep until another thread resumes it.
+    # Threads will be woken in the chronological order that this was called.
+    # @note Will block until resumed
+    # @param mutex [Mutex] mutex to be unlocked while this thread is sleeping
+    # @param timeout [nil,Numeric] maximum time to sleep in seconds, +nil+ for forever
+    # @raise [TypeError] if +timeout+ is not +nil+ or +Numeric+
+    # @raise [ArgumentError] if +timeout+ is negative
+    # @raise [Exception] any exception raised by +::ConditionVariable#wait+ (eg. interrupts, +ThreadError+)
+    # @return [self]
+    def wait(mutex, timeout = nil)
+      validate_mutex(mutex)
+      validate_timeout(timeout)
+      waitable = waitable_for_current_thread
+      @mutex.synchronize do
+        @waitables.push(waitable)
+        @waitables_to_resume.push(waitable)
+      end
+      waitable.wait(mutex, timeout)
+      self
+    end
+
+    # Remove a {Waitable} whose thread has been woken.
     # @api private
     # @return [void]
-    def sleep(duration)
-      if duration == nil || duration == Float::INFINITY
-        Thread.stop
-      else
-        Thread.sleep(duration)
-      end
-      nil
+    def waitable_woken(waitable)
+      @mutex.synchronize { @waitables.delete(waitable) }
     end
-    
-    # Sleeps the current `Thread` until {#signal} or {#broadcast} wake it.
-    # If a {Mutex} is given, the {Mutex} will be unlocked before sleeping and relocked when woken.
-    # @raise [ArgumentError]
-    # @param mutex [nil,Mutex]
-    # @param timeout [nil,Numeric] maximum time to wait, specified in seconds
-    # @return [self]
-    def wait(mutex = nil, timeout = nil)
-      validate_mutex(mutex)
-      if timeout != nil && !timeout.is_a?(Numeric)
-        raise ArgumentError, "'timeout' argument must be nil or a Numeric"
-      end
-      @mutex.synchronize { @waiting_threads.push(caller) }
-      if mutex
-        # ideally we would would check if this Thread can sleep (not the last Thread alive)
-        #   before we unlock the mutex, however I am not sure is that can be implemented
-        if mutex.respond_to?(:unlock!)
-          mutex.unlock! { sleep(timeout) }
-        else
-          mutex.unlock
-          begin
-            sleep(timeout)
-          ensure # rescue a fatal error (eg. only Thread stopped)
-            if mutex.locked?
-              # another Thread locked this before it died
-              # this is not a correct state to be in but I don't know how to fix it
-              # given that there are no other alive Threads then than the ramifications should be minimal
-            else
-              mutex.lock
-            end
-          end
-        end
-      else
-        sleep(timeout)
-      end
-      self
-    ensure
-      @mutex.synchronize { @waiting_threads.delete(caller) }
-    end
-    
-    # Returns the number of `Thread`s currently waiting.
-    # @api private
+
+    # Returns the number of threads currently waiting on it.
     # @return [Integer]
     def waiting_threads_count
-      @waiting_threads_sleepers.length
+      @waitables.length
     end
-    
+
     private
-    
-    # Gets the currently executing `Thread`.
-    # @api private
-    # @return [Thread]
-    def caller
-      Thread.current
-    end
-    
-    # Wakes up the next waiting `Thread`.
-    # Will try again if the `Thread` has already been woken.
+
+    # Wakes up the next waiting thread.
+    # Will try again if the thread has already been woken.
     # @api private
     # @return [void]
     def signal_next
-      begin
-        next_waiting_thread = @waiting_threads.shift
-        next_waiting_thread.run if next_waiting_thread
-      rescue ThreadError
-        # Thread must be dead
-        retry
+      loop do
+        next_waitable = @waitables_to_resume.shift
+        if next_waitable
+          resume_successful = next_waitable.resume
+          break if resume_successful
+        end
       end
       nil
     end
-    
+
+    # Validates that an object behaves like a +::Mutex+
+    # Must be able to lock and unlock +mutex+.
+    # @api private
+    # @param mutex [Mutex] mutex to be validated
+    # @raise [TypeError] if +mutex+ does not behave like a +::Mutex+
+    # @return [void]
     def validate_mutex(mutex)
-      return if mutex == nil
-      return if mutex.respond_to?(:lock) && (mutex.respond_to?(:unlock) || mutex.respond_to?(:unlock!))
-      raise ArgumentError, "'mutex' must respond to 'lock' and ('unlock' or'unlock!')"
+      return if mutex.respond_to?(:lock) && mutex.respond_to?(:unlock)
+      return if mutex.respond_to?(:unlock!)
+      raise TypeError, "'mutex' must respond to ('lock' and 'unlock') or 'unlock!'"
     end
-    
+
+    # Validates a timeout value
+    # @api private
+    # @param timeout [nil,Numeric]
+    # @raise [TypeError] if +timeout+ is not +nil+ or +Numeric+
+    # @raise [ArgumentError] if +timeout+ is negative
+    # @return [void]
+    def validate_timeout(timeout)
+      unless timeout == nil
+        raise TypeError, "'timeout' must be nil or a Numeric" unless timeout.is_a?(Numeric)
+        raise ArgumentError, "'timeout' must not be negative" if timeout.negative?
+      end
+    end
+
+    # Returns a waitable to represent the current thread.
+    # @api private
+    # @return [Waitable]
+    def waitable_for_current_thread
+      Waitable.new(self)
+    end
+
   end
 end

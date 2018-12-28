@@ -2,32 +2,41 @@
 
 
 module QuackConcurrency
+
+  # {ReentrantMutex}s are similar to {Mutex}s with with the key distinction being
+  # that a thread can call lock on a {Mutex} that it has already locked.
   class ReentrantMutex < Mutex
-  
+
     # Creates a new {ReentrantMutex} concurrency tool.
     # @return [ReentrantMutex]
     def initialize
       super
       @lock_depth = 0
     end
-    
+
     #@overload lock
-    #  Obtains the lock or sleeps the current `Thread` until it is available.
+    #  Obtains a lock, blocking until available.
+    #  It will acquire a lock even if one is already held.
     #  @return [void]
     #@overload lock(&block)
-    #  Obtains the lock, runs the block, then releases the lock when the block completes.
+    #  Obtains a lock, runs the block, then releases a lock.
+    #  It will block until a lock is available.
+    #  It will acquire a lock even if one is already held.
+    #  @raise [ThreadError] if not locked by the calling thread when unlocking
+    #  @raise [ThreadError] if not holding the same lock count when unlocking
+    #  @raise [Exception] any exception raised in block
     #  @yield block to run with the lock
     #  @return [Object] result of the block
     def lock(&block)
       if block_given?  
         lock
         start_depth = @lock_depth
-        start_owner = owner
         begin
           yield
         ensure
-          unless @lock_depth == start_depth && owner == start_owner
-            raise Error, 'could not unlock reentrant mutex as its state has been modified'
+          ensure_can_unlock
+          unless @lock_depth == start_depth
+            raise ThreadError, 'Attempt to unlock a ReentrantMutex whose lock depth has been changed since locking it'
           end
           unlock
         end
@@ -37,105 +46,84 @@ module QuackConcurrency
         nil
       end
     end
-    
-    # Checks if this {ReentrantMutex} is locked by a Thread other than the caller.
-    # @return [Boolean]
-    def locked_out?
-      # don't need a mutex because we know #owned? can't change during the call 
-      locked? && !owned?
-    end
-    
-    # Releases the lock and sleeps.
-    # When the calling Thread is next woken up, it will attempt to reacquire the lock.
-    # @param timeout [Integer] seconds to sleep, `nil` will sleep forever
-    # @raise [Error] if this {ReentrantMutex} wasn't locked by the calling Thread
-    # @return [void]
+
+    # @see Mutex#sleep
     def sleep(timeout = nil)
-      raise Error, 'can not unlock reentrant mutex, it is not locked' unless locked?
-      raise Error, 'can not unlock reentrant mutex, caller is not the owner' unless owned?
+      ensure_can_unlock
       base_depth do
         super(timeout)
       end
     end
-    
-    # Obtains a lock, runs the block, and releases the lock when the block completes.
-    # @return [Object] value from yielded block
-    def synchronize(&block)
-      lock(&block)
-    end
-    
-    alias parent_try_lock try_lock
-    private :parent_try_lock
+
     # Attempts to obtain the lock and returns immediately.
     # @return [Boolean] returns if the lock was granted
     def try_lock
-      if owned?
+      if owned? || super
         @lock_depth += 1
         true
       else
-        lock_successful = parent_try_lock
-        if lock_successful
-          @lock_depth += 1
-          true
-        else
-          false
-        end
+        false
       end
     end
-    
-    # Releases the lock.
-    # @raise [Error] if {ReentrantMutex} wasn't locked by the calling Thread
-    # @return [void]
+
+    #@overload unlock
+    #  Releases a lock.
+    #  @return [void]
+    #@overload unlock(&block)
+    #  Releases a lock, runs the block, then reacquires the lock when available,
+    #    blocking if necessary.
+    #  @raise [Exception] any exception raised in block
+    #  @raise [ThreadError] if relock unsuccessful after an error
+    #  @yield block to run while releasing the lock
+    #  @return [Object] result of the block
+    # @raise [ThreadError] if it is not locked by this thread
     def unlock(&block)
-      raise Error, 'can not unlock reentrant mutex, it is not locked' unless locked?
-      raise Error, 'can not unlock reentrant mutex, caller is not the owner' unless owned?
+      ensure_can_unlock
       if block_given?
-        unlock
-        begin
-          yield
-        ensure
-          lock
-        end
+        temporarily_release(&block)
       else
         @lock_depth -= 1
         super if @lock_depth == 0
         nil
       end
     end
-    
-    # Releases the lock.
-    # @raise [Error] if {ReentrantMutex} wasn't locked by the calling Thread
-    # @return [void]
+
+    # Releases all lock, runs the block, then reacquires the same lock count when available,
+    #   blocking if necessary.
+    # @raise [ArgumentError] if no block given
+    # @raise [ThreadError] if this thread does not hold any locks
+    # @raise [Exception] any exception raised in block
+    # @yield block to run while locks have been released
+    # @return [Object] result of the block
     def unlock!(&block)
-      raise Error, 'can not unlock reentrant mutex, it is not locked' unless locked?
-      raise Error, 'can not unlock reentrant mutex, caller is not the owner' unless owned?
-      if block_given?
-        base_depth do
-          unlock
-          begin
-            yield
-          ensure
-            lock
-          end
-        end
-      else
-        @lock_depth = 0
-        super
-        nil
+      ensure_can_unlock
+      base_depth do
+        temporarily_release(&block)
       end
     end
-    
+
     private
-    
+
+    # Releases all but one lock, runs the block, then reacquires the released lock count when available,
+    #   blocking if necessary.
     # @api private
+    # @raise [Exception] any exception raised in block
+    # @return [Object] result of the block
     def base_depth(&block)
       start_depth = @lock_depth
       @lock_depth = 1
-      yield
-    ensure
+      return_value = yield
       @lock_depth = start_depth
+      return_value
     end
-    
+
+    # Ensure it can be unlocked
+    # @raise [ThreadError] if it is not locked by this thread
+    # @return [void]
+    def ensure_can_unlock
+      raise ThreadError, 'Attempt to unlock a ReentrantMutex which is not locked' unless locked?
+      raise ThreadError, 'Attempt to unlock a ReentrantMutex which is locked by another thread' unless owned?
+    end
+
   end
 end
-  
